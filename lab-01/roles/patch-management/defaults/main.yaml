@@ -1,0 +1,28 @@
+---
+# Default variables for patch_management role
+
+# Update mode: full or security_only
+security_only: false
+
+# Health check settings
+http_port: 80
+app_port: 8080
+wait_after_update: true
+custom_health_check_enabled: false
+
+# Critical services to check
+critical_services:
+  - ssh
+  - nginx
+
+# Notification settings
+notify_enabled: false
+telegram_bot_token: ""
+telegram_chat_id: ""
+generate_report: true
+
+# Rollback settings
+enable_rollback: true
+max_rollback_time: 300
+
+app_service_exists: true

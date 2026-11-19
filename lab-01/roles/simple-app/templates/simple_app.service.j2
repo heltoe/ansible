@@ -1,0 +1,35 @@
+# {{ ansible_managed }}
+[Unit]
+Description={{ app_name | default('simple_app') }} - Flask + Gunicorn
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=root
+Group=root
+RuntimeDirectory=gunicorn
+WorkingDirectory={{ app_dir }}
+Environment="PATH={{ app_dir }}/venv/bin"
+ExecStart={{ app_dir }}/venv/bin/gunicorn \
+    --workers {{ gunicorn_workers | default(4) }} \
+    --threads {{ gunicorn_threads | default(2) }} \
+    --bind {{ gunicorn_bind | default('127.0.0.1') }} \
+    --timeout 120 \
+    --keep-alive 5 \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    --access-logfile /var/log/{{ app_name }}/access.log \
+    --error-logfile /var/log/{{ app_name }}/error.log \
+    --log-level info \
+    wsgi:app
+
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=30
+PrivateTmp=true
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

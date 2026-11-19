@@ -1,0 +1,10 @@
+---
+- name: Configure sysctl security parameters
+  ansible.builtin.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: yes
+  loop: "{{ sysctl_security_params }}"
+  loop_control:
+    label: "{{ item.name }}"

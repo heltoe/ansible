@@ -1,0 +1,94 @@
+---
+- name: Install Python3 and dependencies
+  ansible.builtin.apt:
+    name:
+      - python3
+      - python3-pip
+      - python3-venv
+      - python3-dev
+      - build-essential
+      - libmariadb-dev
+      - pkg-config
+    state: present
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create virtual environment
+  ansible.builtin.command: >
+    python3 -m venv {{ app_dir }}/venv
+    creates={{ app_dir }}/venv/bin/activate
+  args:
+    chdir: "{{ app_dir }}"
+
+- name: Install Python dependencies
+  ansible.builtin.pip:
+    name: "{{ item }}"
+    virtualenv: "{{ app_dir }}/venv"
+    state: present
+  loop: "{{ python_dependencies }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Deploy Flask application (static file, no Jinja2)
+  ansible.builtin.copy:
+    src: app.py
+    dest: "{{ app_dir }}/app.py"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Flask app
+
+- name: Deploy WSGI entry point
+  ansible.builtin.copy:
+    content: |
+      #!/usr/bin/env python3
+      from app import app
+
+      if __name__ == '__main__':
+          app.run()
+    dest: "{{ app_dir }}/wsgi.py"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Flask app
+
+- name: Deploy application config (Ansible Jinja2 template)
+  ansible.builtin.template:
+    src: config.py.j2
+    dest: "{{ app_dir }}/config.py"
+    owner: root
+    group: root
+    mode: '0640'
+  notify: Restart Flask app
+
+- name: Create log directory
+  ansible.builtin.file:
+    path: "/var/log/{{ app_name }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy systemd service for Gunicorn
+  ansible.builtin.template:
+    src: simple_app.service.j2
+    dest: /etc/systemd/system/{{ app_name }}.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - Reload systemd
+    - Restart Flask app
+
+- name: Enable and start application
+  ansible.builtin.systemd:
+    name: "{{ app_name }}"
+    state: started
+    enabled: yes
+    daemon_reload: yes

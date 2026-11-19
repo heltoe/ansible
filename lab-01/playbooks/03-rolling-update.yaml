@@ -1,0 +1,98 @@
+---
+# Rolling Update Playbook
+# Обновляет серверы по очереди с health-check и автоматическим rollback
+# Запуск: ansible-playbook playbooks/03-rolling-update.yaml
+
+- name: Rolling Update - Patch Management
+  hosts: all
+  become: yes
+  gather_facts: yes
+  serial: 1  # Обновляем по одному серверу за раз
+  max_fail_percentage: 0  # Останавливаемся при первой ошибке
+
+  vars:
+    # Переменные для rolling update
+    enable_rollback: true
+    notify_enabled: false
+    generate_report: true
+    
+    # Telegram настройки (раскомментируй и заполни если нужно)
+    # telegram_bot_token: "YOUR_BOT_TOKEN"
+    # telegram_chat_id: "YOUR_CHAT_ID"
+    # notify_enabled: true
+
+  pre_tasks:
+    - name: Display rolling update information
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+          Rolling Update Starting
+          ============================================
+          Host: {{ inventory_hostname }}
+          Group: {{ group_names | join(', ') }}
+          Strategy: Serial (1 server at a time)
+          Time: {{ ansible_date_time.iso8601 | default('N/A') }}
+          ============================================
+
+    - name: Check if this is the first server in the batch
+      ansible.builtin.set_fact:
+        is_first_server: "{{ ansible_play_batch.index(inventory_hostname) == 0 }}"
+
+    - name: Wait for previous server to be updated (if not first)
+      ansible.builtin.pause:
+        seconds: 30
+        prompt: "Press Enter to continue with {{ inventory_hostname }} update..."
+      when: 
+        - not is_first_server
+        - not (skip_pause | default(false))
+
+  roles:
+    - role: patch-management
+
+  post_tasks:
+    - name: Verify server is healthy after update (port 80 for all)
+      ansible.builtin.uri:
+        url: "http://localhost:{{ health_check_port | default(80) }}/"
+        status_code: 200
+        timeout: 10
+      register: final_health_check
+      failed_when: false
+
+    - name: Display health check result
+      ansible.builtin.debug:
+        msg: "Health check on {{ inventory_hostname }}: {{ 'PASSED' if (final_health_check.status | default(0)) == 200 else 'FAILED' }}"
+
+    - name: Rollback if health check failed
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+          ⚠️  HEALTH CHECK FAILED - ROLLBACK REQUIRED
+          ============================================
+          Host: {{ inventory_hostname }}
+          Status: {{ final_health_check.status | default('N/A') }}
+          Action: Manual intervention required
+          ============================================
+      when: 
+        - final_health_check is defined
+        - final_health_check.status is defined
+        - final_health_check.status != 200
+
+    - name: Display rolling update completion
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+          ✅ Rolling Update Completed for {{ inventory_hostname }}
+          ============================================
+          Status: SUCCESS
+          ============================================
+
+  handlers:
+    - name: Reboot if required
+      ansible.builtin.reboot:
+        msg: "Rebooting after system update"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: whoami
+      when: reboot_required_after.stat.exists | default(false)

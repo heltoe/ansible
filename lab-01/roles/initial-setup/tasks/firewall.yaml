@@ -1,0 +1,22 @@
+---
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Allow SSH through firewall
+  ansible.builtin.ufw:
+    rule: allow
+    name: OpenSSH
+
+- name: Set UFW default policy to deny incoming
+  ansible.builtin.ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
+
+- name: Set UFW default policy to allow outgoing
+  ansible.builtin.ufw:
+    state: enabled
+    policy: allow
+    direction: outgoing

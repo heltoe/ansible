@@ -1,0 +1,36 @@
+# {{ ansible_managed }}
+# MariaDB custom configuration
+
+[mysqld]
+bind-address = {{ mariadb_bind_address | default('127.0.0.1') }}
+port = {{ mariadb_port | default(3306) }}
+datadir = /var/lib/mysql
+socket = /var/run/mysqld/mysqld.sock
+pid-file = /var/run/mysqld/mysqld.pid
+
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+
+innodb_buffer_pool_size = {{ mariadb_innodb_buffer_pool_size | default('256M') }}
+innodb_log_file_size = {{ mariadb_innodb_log_file_size | default('64M') }}
+innodb_flush_log_at_trx_commit = 1
+innodb_file_per_table = 1
+
+max_connections = {{ mariadb_max_connections | default(100) }}
+wait_timeout = 600
+interactive_timeout = 600
+
+log_error = /var/log/mysql/error.log
+slow_query_log = 1
+slow_query_log_file = /var/log/mysql/slow.log
+long_query_time = 2
+
+skip-symbolic-links = 1
+
+[client]
+default-character-set = utf8mb4
+port = {{ mariadb_port | default(3306) }}
+socket = /var/run/mysqld/mysqld.sock
+
+[mysql]
+default-character-set = utf8mb4

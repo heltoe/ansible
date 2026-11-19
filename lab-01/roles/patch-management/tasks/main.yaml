@@ -1,0 +1,33 @@
+---
+# Главный файл задач роли patch_management
+
+- name: Include pre-update checks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/pre-checks.yaml"
+  tags:
+    - patch
+    - pre-checks
+
+- name: Include package update tasks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/update.yaml"
+  tags:
+    - patch
+    - update
+
+- name: Include post-update checks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/post-checks.yaml"
+  tags:
+    - patch
+    - post-checks
+
+- name: Include health-check tasks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/health-check.yaml"
+  tags:
+    - patch
+    - health-check
+
+- name: Include notification tasks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/notify.yaml"
+  tags:
+    - patch
+    - notify
+  when: notify_enabled | default(false)

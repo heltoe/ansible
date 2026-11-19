@@ -1,0 +1,49 @@
+---
+- name: Create SSL directory
+  ansible.builtin.file:
+    path: /etc/nginx/ssl
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Check if SSL certificate exists
+  ansible.builtin.stat:
+    path: "/etc/nginx/ssl/{{ ssl_certificate_name }}.crt"
+  register: ssl_cert_exists
+
+- name: Generate self-signed SSL certificate
+  ansible.builtin.command: >
+    openssl req -x509 -nodes -days {{ ssl_certificate_days | default(365) }} -newkey rsa:2048
+    -keyout /etc/nginx/ssl/{{ ssl_certificate_name }}.key
+    -out /etc/nginx/ssl/{{ ssl_certificate_name }}.crt
+    -subj "/C={{ ssl_country }}/ST={{ ssl_state }}/L={{ ssl_city }}/O={{ ssl_org }}/OU={{ ssl_ou }}/CN={{ ssl_common_name | default(inventory_hostname) }}"
+  when: not ssl_cert_exists.stat.exists
+  notify: Reload Nginx
+
+- name: Set correct permissions on SSL key
+  ansible.builtin.file:
+    path: "/etc/nginx/ssl/{{ ssl_certificate_name }}.key"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Set correct permissions on SSL certificate
+  ansible.builtin.file:
+    path: "/etc/nginx/ssl/{{ ssl_certificate_name }}.crt"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Check if DH params exist
+  ansible.builtin.stat:
+    path: /etc/nginx/ssl/dhparam.pem
+  register: ssl_dhparam_exists
+
+- name: Generate DH parameters (this may take a while)
+  ansible.builtin.command: >
+    openssl dhparam -out /etc/nginx/ssl/dhparam.pem 2048
+  when: not ssl_dhparam_exists.stat.exists
+  notify: Reload Nginx
+  async: 300
+  poll: 10

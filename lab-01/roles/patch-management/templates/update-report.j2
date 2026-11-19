@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+# Update Report for {{ inventory_hostname }}
+
+Date: {{ ansible_date_time.iso8601 | default('N/A') }}
+Hostname: {{ inventory_hostname }}
+OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+Kernel: {{ ansible_kernel }}
+
+Update Results:
+- Changed: {{ update_result.changed | default(false) }}
+- Reboot Required: {{ reboot_required_after.stat.exists | default(false) }}
+
+Health Check:
+- HTTP Status: {{ http_check.status | default('N/A') }}
+- System Load: {{ system_load.stdout | default('N/A') }}
+
+Services Status:
+{% for service in service_status.results | default([]) %}
+- {{ service.item }}: {{ service.status.ActiveState | default('unknown') }}
+{% endfor %}
+
+---
+End of Report

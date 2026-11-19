@@ -1,0 +1,9 @@
+---
+ssl_certificate_name: "{{ inventory_hostname }}"
+ssl_certificate_days: 365
+ssl_country: "RU"
+ssl_state: "Moscow"
+ssl_city: "Moscow"
+ssl_org: "Ansible Lab"
+ssl_ou: "IT Department"
+ssl_common_name: "{{ inventory_hostname }}"

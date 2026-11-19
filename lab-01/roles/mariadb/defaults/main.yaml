@@ -1,0 +1,21 @@
+---
+mariadb_root_password: "SecureRootP@ssw0rd!"
+mariadb_bind_address: "127.0.0.1"
+mariadb_port: 3306
+mariadb_innodb_buffer_pool_size: "256M"
+mariadb_innodb_log_file_size: "64M"
+mariadb_max_connections: 100
+
+mariadb_databases:
+  - name: app_db
+    charset: utf8mb4
+    collation: utf8mb4_unicode_ci
+
+mariadb_users:
+  - user: app_user
+    password: "AppUserP@ssw0rd!"
+    name: app_db
+    host: "%"
+
+mariadb_allowed_hosts:
+  - "192.168.1.0/24"

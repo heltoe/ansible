@@ -1,0 +1,12 @@
+---
+- name: Configure SSH daemon security settings
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    state: present
+    validate: 'sshd -t -f %s'
+  loop: "{{ ssh_hardening_settings }}"
+  loop_control:
+    label: "{{ item.line }}"
+  notify: Restart SSH

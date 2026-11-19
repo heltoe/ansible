@@ -1,0 +1,71 @@
+---
+# Rollback Playbook
+# Откатывает изменения на проблемном сервере
+# Запуск: ansible-playbook playbooks/04-rollback.yaml -e "target_host=web-01"
+
+- name: Rollback server configuration
+  hosts: "{{ target_host | default('all') }}"
+  become: yes
+  gather_facts: yes
+
+  vars:
+    rollback_time: "{{ ansible_date_time.epoch | default('unknown') }}"
+
+  tasks:
+    - name: Display rollback information
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+          ROLLBACK OPERATION
+          ============================================
+          Target: {{ inventory_hostname }}
+          Time: {{ ansible_date_time.iso8601 | default('N/A') }}
+          ============================================
+
+    - name: Check if package backup exists
+      ansible.builtin.find:
+        paths: /tmp
+        patterns: "package_backup_*.txt"
+      register: backup_files
+
+    - name: Get latest backup file
+      ansible.builtin.set_fact:
+        latest_backup: "{{ backup_files.files | sort(attribute='mtime') | last | default(None) }}"
+
+    - name: Restore package list from backup
+      ansible.builtin.shell: |
+        if [ -f {{ latest_backup.path | default('/tmp/package_backup.txt') }} ]; then
+          dpkg --set-selections < {{ latest_backup.path }}
+          apt-get dselect-upgrade -y
+        fi
+      when: latest_backup is not None
+      register: rollback_result
+
+    - name: Restart critical services
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: restarted
+      loop:
+        - sshd
+        - nginx
+      failed_when: false
+
+    - name: Verify services are running
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+      register: service_check
+      loop:
+        - sshd
+        - nginx
+      failed_when: false
+
+    - name: Display rollback results
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+          Rollback Completed
+          ============================================
+          Host: {{ inventory_hostname }}
+          Backup Used: {{ latest_backup.path | default('None') }}
+          Services Restarted: Yes
+          ============================================

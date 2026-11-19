@@ -1,0 +1,230 @@
+---
+- name: Initial Server Setup
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    admin_users:
+      - username: sysadmin
+        comment: "System Administrator"
+        groups: sudo
+        shell: /bin/bash
+      - username: deploy
+        comment: "Deployment User"
+        groups: sudo
+        shell: /bin/bash
+    
+    packages_to_install:
+      - vim
+      - htop
+      - curl
+      - wget
+      - git
+      - net-tools
+      - unzip
+      - jq
+      - tmux
+      - tree
+    
+    ntp_servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 2.pool.ntp.org
+
+  tasks:
+    # Обновление системы
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+    
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+        autoremove: yes
+        autoclean: yes
+      ignore_errors: yes
+    
+    # Установка базовых пакетов
+    - name: Install essential packages
+      apt:
+        name: "{{ packages_to_install }}"
+        state: present
+    
+    # Настройка hostname
+    - name: Set hostname
+      hostname:
+        name: "{{ inventory_hostname }}"
+    
+    - name: Update /etc/hosts
+      lineinfile:
+        path: /etc/hosts
+        regexp: '^127\.0\.1\.1'
+        line: "127.0.1.1 {{ inventory_hostname }}"
+    
+    # Создание пользователей
+    - name: Create admin users
+      user:
+        name: "{{ item.username }}"
+        comment: "{{ item.comment }}"
+        groups: "{{ item.groups }}"
+        shell: "{{ item.shell }}"
+        create_home: yes
+        state: present
+      loop: "{{ admin_users }}"
+    
+    - name: Set authorized keys for admin users
+      authorized_key:
+        user: "{{ item.username }}"
+        state: present
+        key: "{{ lookup('file', '~/.ssh/ansible_key.pub') }}"
+      loop: "{{ admin_users }}"
+    
+    - name: Allow sudo without password for admin users
+      lineinfile:
+        path: "/etc/sudoers.d/{{ item.username }}"
+        line: "{{ item.username }} ALL=(ALL) NOPASSWD: ALL"
+        state: present
+        create: yes
+        mode: '0440'
+        validate: 'visudo -cf %s'
+      loop: "{{ admin_users }}"
+    
+    # Настройка SSH
+    - name: Configure SSH daemon
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      loop:
+        - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+        - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+        - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
+        - { regexp: '^#?X11Forwarding', line: 'X11Forwarding no' }
+        - { regexp: '^#?MaxAuthTries', line: 'MaxAuthTries 3' }
+        - { regexp: '^#?ClientAliveInterval', line: 'ClientAliveInterval 300' }
+        - { regexp: '^#?ClientAliveCountMax', line: 'ClientAliveCountMax 2' }
+      notify: Restart SSH
+    
+    # Настройка firewall (UFW)
+    - name: Install UFW
+      apt:
+        name: ufw
+        state: present
+    
+    - name: Allow SSH through firewall
+      ufw:
+        rule: allow
+        name: OpenSSH
+    
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        policy: deny
+    
+    # Установка и настройка fail2ban
+    - name: Install fail2ban
+      apt:
+        name: fail2ban
+        state: present
+    
+    - name: Configure fail2ban for SSH
+      copy:
+        dest: /etc/fail2ban/jail.local
+        content: |
+          [DEFAULT]
+          bantime = 3600
+          findtime = 600
+          maxretry = 3
+          backend = systemd
+          
+          [sshd]
+          enabled = true
+          port = ssh
+          filter = sshd
+          logpath = /var/log/auth.log
+          maxretry = 3
+          bantime = 3600
+      notify: Restart fail2ban
+    
+    # Настройка NTP
+    - name: Install chrony
+      apt:
+        name: chrony
+        state: present
+    
+    - name: Configure NTP servers
+      template:
+        src: ../templates/chrony.conf.j2
+        dest: /etc/chrony/chrony.conf
+      notify: Restart chrony
+    
+    - name: Enable and start chrony
+      systemd:
+        name: chrony
+        state: started
+        enabled: yes
+    
+    # Настройка timezone
+    - name: Set timezone to UTC
+      timezone:
+        name: UTC
+    
+    # Отключение ненужных сервисов
+    - name: Disable unnecessary services
+      systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+      loop:
+        - cups
+        - bluetooth
+      ignore_errors: yes
+    
+    # Настройка sysctl для безопасности
+    - name: Configure sysctl security parameters
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: yes
+      loop:
+        - { name: 'net.ipv4.ip_forward', value: '0' }
+        - { name: 'net.ipv4.conf.all.send_redirects', value: '0' }
+        - { name: 'net.ipv4.conf.default.accept_redirects', value: '0' }
+        - { name: 'net.ipv4.conf.all.accept_redirects', value: '0' }
+        - { name: 'net.ipv4.conf.all.log_martians', value: '1' }
+    
+    # Финальная перезагрузка (опционально)
+    - name: Check if reboot is required
+      stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+    
+    - name: Reboot server if required
+      reboot:
+        msg: "Rebooting for kernel updates"
+        connect_timeout: 5
+        reboot_timeout: 300
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: whoami
+      when: reboot_required.stat.exists
+
+  handlers:
+    - name: Restart SSH
+      systemd:
+        name: sshd
+        state: restarted
+    
+    - name: Restart fail2ban
+      systemd:
+        name: fail2ban
+        state: restarted
+    
+    - name: Restart chrony
+      systemd:
+        name: chrony
+        state: restarted

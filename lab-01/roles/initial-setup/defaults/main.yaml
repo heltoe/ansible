@@ -1,0 +1,67 @@
+---
+# Переменные по умолчанию для роли initial-setup
+
+essential_packages:
+  - vim
+  - htop
+  - curl
+  - wget
+  - git
+  - net-tools
+  - unzip
+  - jq
+  - tmux
+  - tree
+  - python3-pip
+
+admin_users:
+  - username: sysadmin
+    comment: "System Administrator"
+    groups: sudo
+    shell: /bin/bash
+  - username: deploy
+    comment: "Deployment User"
+    groups: sudo
+    shell: /bin/bash
+
+ntp_servers:
+  - 0.pool.ntp.org
+  - 1.pool.ntp.org
+  - 2.pool.ntp.org
+  - 3.pool.ntp.org
+
+ssh_hardening_settings:
+  - regexp: '^#?PermitRootLogin'
+    line: 'PermitRootLogin no'
+  - regexp: '^#?PasswordAuthentication'
+    line: 'PasswordAuthentication no'
+  - regexp: '^#?PubkeyAuthentication'
+    line: 'PubkeyAuthentication yes'
+  - regexp: '^#?X11Forwarding'
+    line: 'X11Forwarding no'
+  - regexp: '^#?MaxAuthTries'
+    line: 'MaxAuthTries 3'
+  - regexp: '^#?ClientAliveInterval'
+    line: 'ClientAliveInterval 300'
+  - regexp: '^#?ClientAliveCountMax'
+    line: 'ClientAliveCountMax 2'
+  - regexp: '^#?UsePAM'
+    line: 'UsePAM yes'
+  - regexp: '^#?LoginGraceTime'
+    line: 'LoginGraceTime 60'
+
+sysctl_security_params:
+  - name: 'net.ipv4.ip_forward'
+    value: '0'
+  - name: 'net.ipv4.conf.all.send_redirects'
+    value: '0'
+  - name: 'net.ipv4.conf.default.accept_redirects'
+    value: '0'
+  - name: 'net.ipv4.conf.all.accept_redirects'
+    value: '0'
+  - name: 'net.ipv4.conf.all.log_martians'
+    value: '1'
+  - name: 'net.ipv4.icmp_echo_ignore_broadcasts'
+    value: '1'
+  - name: 'net.ipv4.conf.all.rp_filter'
+    value: '1'

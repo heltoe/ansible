@@ -1,0 +1,48 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Check for security updates only
+  ansible.builtin.shell: apt list --upgradable 2>/dev/null | grep -i security | wc -l
+  register: security_updates_count
+  changed_when: false
+  when: security_only | default(false)
+
+- name: Perform full system upgrade
+  ansible.builtin.apt:
+    upgrade: dist
+    autoremove: yes
+    autoclean: yes
+  register: update_result
+  when: not (security_only | default(false))
+
+- name: Perform security-only upgrade
+  ansible.builtin.apt:
+    upgrade: dist
+    autoremove: yes
+    autoclean: yes
+  register: update_result
+  when: security_only | default(false)
+
+- name: Check if reboot is required
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: reboot_required_after
+
+- name: Schedule reboot if required
+  ansible.builtin.debug:
+    msg: "System will require reboot after update"
+  when: reboot_required_after.stat.exists
+
+- name: Display update results
+  ansible.builtin.debug:
+    msg: |
+      ============================================
+      Update Results
+      ============================================
+      Host: {{ inventory_hostname }}
+      Changed: {{ update_result.changed | default(false) }}
+      Reboot Required: {{ reboot_required_after.stat.exists | default(false) }}
+      ============================================

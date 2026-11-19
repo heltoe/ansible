@@ -1,0 +1,35 @@
+- name: Ensure root uses unix_socket authentication
+  ansible.builtin.shell: |
+    mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED VIA unix_socket; FLUSH PRIVILEGES;"
+  changed_when: false
+  failed_when: false
+
+- name: Create /root/.my.cnf for root access
+  ansible.builtin.copy:
+    dest: /root/.my.cnf
+    content: |
+      [client]
+      user=root
+      socket=/run/mysqld/mysqld.sock
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Update debian.cnf for service scripts
+  ansible.builtin.copy:
+    dest: /etc/mysql/debian.cnf
+    content: |
+      [client]
+      host     = localhost
+      user     = root
+      password = 
+      socket   = /run/mysqld/mysqld.sock
+      
+      [mysql_upgrade]
+      host     = localhost
+      user     = root
+      password = 
+      socket   = /run/mysqld/mysqld.sock
+    owner: root
+    group: root
+    mode: '0600'

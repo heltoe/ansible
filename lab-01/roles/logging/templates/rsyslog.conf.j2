@@ -1,0 +1,8 @@
+# {{ ansible_managed }}
+# Centralized logging configuration
+
+# Send all logs to central log server
+*.* @@{{ central_log_server }}:514
+
+# Local logging
+$ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat

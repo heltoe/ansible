@@ -1,0 +1,67 @@
+---
+# Главный файл задач роли initial-setup
+# Включает в себя все подзадачи
+
+- name: Force time synchronization via systemd-timesyncd
+  ansible.builtin.shell: |
+    systemctl restart systemd-timesyncd
+    sleep 2
+    timedatectl set-ntp off
+    timedatectl set-ntp on
+  failed_when: false # Если что-то пойдет не так, плейбук не упадет
+  tags:
+    - packages
+    - system
+    - ntp
+
+- name: Include system update tasks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/system-update.yaml"
+  tags:
+    - packages
+    - update
+
+- name: Include packages installation tasks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/packages.yaml"
+  tags:
+    - packages
+
+- name: Include hostname configuration tasks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/hostname.yaml"
+  tags:
+    - system
+
+- name: Include users configuration tasks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/users.yaml"
+  tags:
+    - users
+    - security
+
+- name: Include SSH hardening tasks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/ssh-hardening.yaml"
+  tags:
+    - security
+    - ssh
+
+- name: Include firewall configuration tasks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/firewall.yaml"
+  tags:
+    - security
+    - firewall
+
+- name: Include fail2ban configuration tasks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/fail2ban.yaml"
+  tags:
+    - security
+    - fail2ban
+
+- name: Include NTP configuration tasks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/ntp.yaml"
+  tags:
+    - ntp
+    - system
+
+- name: Include sysctl security tasks
+  ansible.builtin.include_tasks: "{{ role_path }}/tasks/sysctl.yaml"
+  tags:
+    - security
+    - sysctl

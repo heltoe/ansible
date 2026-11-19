@@ -1,0 +1,196 @@
+---
+# Playbook для проверки корректности настройки серверов
+# Запуск: ansible-playbook tests/verify.yaml
+
+- name: Verify server configuration
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    # Проверка hostname
+    - name: Verify hostname is set correctly
+      ansible.builtin.assert:
+        that:
+          - ansible_hostname == inventory_hostname
+        fail_msg: "Hostname {{ ansible_hostname }} does not match inventory name {{ inventory_hostname }}"
+        success_msg: "Hostname is correctly set to {{ ansible_hostname }}"
+      tags:
+        - verify
+        - system
+
+    # Проверка пользователей
+    - name: Verify sysadmin user exists
+      ansible.builtin.getent:
+        database: passwd
+        key: sysadmin
+      register: sysadmin_user
+
+    - name: Assert sysadmin user exists
+      ansible.builtin.assert:
+        that:
+          - sysadmin_user.ansible_facts.getent_passwd.sysadmin is defined
+        fail_msg: "User sysadmin does not exist"
+        success_msg: "User sysadmin exists"
+      tags:
+        - verify
+        - users
+
+    - name: Verify deploy user exists
+      ansible.builtin.getent:
+        database: passwd
+        key: deploy
+      register: deploy_user
+
+    - name: Assert deploy user exists
+      ansible.builtin.assert:
+        that:
+          - deploy_user.ansible_facts.getent_passwd.deploy is defined
+        fail_msg: "User deploy does not exist"
+        success_msg: "User deploy exists"
+      tags:
+        - verify
+        - users
+
+    # Проверка SSH конфигурации
+    - name: Read SSH config
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: sshd_config_content
+
+    - name: Verify SSH root login is disabled
+      ansible.builtin.assert:
+        that:
+          - "'PermitRootLogin no' in (sshd_config_content.content | b64decode)"
+        fail_msg: "PermitRootLogin is not set to 'no'"
+        success_msg: "SSH root login is disabled"
+      tags:
+        - verify
+        - security
+
+    - name: Verify SSH password authentication is disabled
+      ansible.builtin.assert:
+        that:
+          - "'PasswordAuthentication no' in (sshd_config_content.content | b64decode)"
+        fail_msg: "PasswordAuthentication is not set to 'no'"
+        success_msg: "SSH password authentication is disabled"
+      tags:
+        - verify
+        - security
+
+    # Проверка firewall
+    - name: Check UFW status
+      ansible.builtin.command: ufw status
+      register: ufw_status
+      changed_when: false
+
+    - name: Verify UFW is active
+      ansible.builtin.assert:
+        that:
+          - "'Status: active' in ufw_status.stdout"
+        fail_msg: "UFW is not active"
+        success_msg: "UFW is active"
+      tags:
+        - verify
+        - firewall
+
+    # Проверка fail2ban
+    - name: Check fail2ban status
+      ansible.builtin.command: fail2ban-client status sshd
+      register: fail2ban_status
+      changed_when: false
+      failed_when: false
+
+    - name: Verify fail2ban is running
+      ansible.builtin.assert:
+        that:
+          - fail2ban_status.rc == 0
+        fail_msg: "fail2ban is not running or sshd jail is not configured"
+        success_msg: "fail2ban is running with sshd jail"
+      tags:
+        - verify
+        - security
+
+    # Проверка NTP
+    - name: Check chrony sources
+      ansible.builtin.command: chronyc sources
+      register: chrony_sources
+      changed_when: false
+
+    - name: Verify NTP is configured
+      ansible.builtin.assert:
+        that:
+          - chrony_sources.rc == 0
+          - chrony_sources.stdout | length > 0
+        fail_msg: "NTP is not configured or not working"
+        success_msg: "NTP is configured and working"
+      tags:
+        - verify
+        - ntp
+
+    # Проверка установленных пакетов
+    - name: Check if essential packages are installed
+      ansible.builtin.command: "dpkg-query -W -f='${Status}\n' {{ item }}"
+      loop: "{{ essential_packages | default(['vim', 'htop', 'curl', 'wget', 'git']) }}"
+      register: package_status
+      changed_when: false
+
+    - name: Verify packages are installed
+      ansible.builtin.assert:
+        that:
+          - "'install ok installed' in item.stdout"
+        fail_msg: "Package {{ item.item }} is not installed"
+        success_msg: "Package {{ item.item }} is installed"
+      loop: "{{ package_status.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      tags:
+        - verify
+        - packages
+
+    # Проверка prometheus-node-exporter
+    - name: Check if node-exporter is running
+      ansible.builtin.systemd:
+        name: prometheus-node-exporter
+      register: node_exporter_status
+
+    - name: Verify node-exporter is active
+      ansible.builtin.assert:
+        that:
+          - node_exporter_status.status.ActiveState == "active"
+        fail_msg: "prometheus-node-exporter is not running"
+        success_msg: "prometheus-node-exporter is running"
+      tags:
+        - verify
+        - monitoring
+
+    # Проверка rsyslog
+    - name: Check if rsyslog is running
+      ansible.builtin.systemd:
+        name: rsyslog
+      register: rsyslog_status
+
+    - name: Verify rsyslog is active
+      ansible.builtin.assert:
+        that:
+          - rsyslog_status.status.ActiveState == "active"
+        fail_msg: "rsyslog is not running"
+        success_msg: "rsyslog is running"
+      tags:
+        - verify
+        - logging
+
+    # Итоговый отчёт
+    - name: Print verification summary
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+          Server Verification Summary
+          ============================================
+          Hostname: {{ ansible_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Kernel: {{ ansible_kernel }}
+          IP: {{ ansible_default_ipv4.address | default('N/A') }}
+          ============================================
+      tags:
+        - verify

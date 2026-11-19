@@ -1,0 +1,49 @@
+---
+- name: Verify system is still reachable
+  ansible.builtin.ping:
+  register: post_ping
+
+- name: Check critical services status
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+  register: service_status
+  loop: "{{ critical_services | default(['ssh', 'nginx']) }}"
+  loop_control:
+    label: "{{ item }}"
+  failed_when: false
+
+- name: Display service status
+  ansible.builtin.debug:
+    msg: "Service {{ item.item }} is {{ item.status.ActiveState | default('unknown') }}"
+  loop: "{{ service_status.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Check system load after update
+  ansible.builtin.shell: uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//'
+  register: system_load
+  changed_when: false
+
+- name: Assert system load is acceptable
+  ansible.builtin.assert:
+    that:
+      - system_load.stdout | float < 5.0
+    fail_msg: "System load is too high: {{ system_load.stdout }}"
+    success_msg: "System load is acceptable: {{ system_load.stdout }}"
+
+- name: Get updated package count
+  ansible.builtin.shell: apt list --upgradable 2>/dev/null | grep -v "^Listing" | wc -l
+  register: remaining_updates
+  changed_when: false
+
+- name: Display post-update summary
+  ansible.builtin.debug:
+    msg: |
+      ============================================
+      Post-update Check Results
+      ============================================
+      Host: {{ inventory_hostname }}
+      System Reachable: {{ post_ping.ping is defined }}
+      System Load: {{ system_load.stdout }}
+      Remaining Updates: {{ remaining_updates.stdout }}
+      ============================================

@@ -1,0 +1,25 @@
+---
+# Главный playbook для настройки всей инфраструктуры
+# Запуск: ansible-playbook playbooks/site.yaml
+
+- name: Configure all servers
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars:
+    central_log_server: "192.168.1.10"  # web-01 будет центральным лог-сервером
+
+  roles:
+    - role: initial-setup
+      tags:
+        - initial-setup
+
+    - role: monitoring
+      tags:
+        - monitoring
+
+    - role: logging
+      tags:
+        - logging
+      when: inventory_hostname != central_log_server

@@ -1,0 +1,21 @@
+---
+app_name: "simple_app"
+app_dir: "/opt/simple_app"
+
+python_dependencies:
+  - flask
+  - gunicorn
+  - mysqlclient
+
+app_db_host: "192.168.1.12"
+app_db_port: 3306
+app_db_name: "app_db"
+app_db_user: "app_user"
+app_db_password: "AppUserP@ssw0rd!"
+
+gunicorn_workers: 4
+gunicorn_threads: 2
+gunicorn_bind: "127.0.0.1"
+
+app_environment: "production"
+debug: false

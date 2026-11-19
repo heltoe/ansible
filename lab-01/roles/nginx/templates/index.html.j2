@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ inventory_hostname }} - Ansible Lab</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 20px;
+        }
+        h1 { font-size: 3em; margin-bottom: 10px; }
+        p { font-size: 1.2em; }
+        .status { 
+            background: rgba(255,255,255,0.2); 
+            padding: 10px 20px; 
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ inventory_hostname }}</h1>
+        <p>Ansible Lab - Production Server</p>
+        <div class="status">
+            <p>Server: {{ ansible_hostname }}</p>
+            <p>IP: {{ ansible_default_ipv4.address | default('N/A') }}</p>
+            <p>OS: {{ ansible_distribution }} {{ ansible_distribution_version }}</p>
+            <p>Last Updated: {{ ansible_date_time.iso8601 | default('N/A') }}</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,57 @@
+---
+- name: Check if system is reachable
+  ansible.builtin.ping:
+  register: ping_result
+
+- name: Gather system facts
+  ansible.builtin.setup:
+    filter:
+      - ansible_distribution
+      - ansible_distribution_version
+      - ansible_kernel
+      - ansible_pkg_mgr
+
+- name: Check available disk space
+  ansible.builtin.shell: df -h / | tail -1 | awk '{print $5}' | sed 's/%//'
+  register: disk_usage
+  changed_when: false
+
+- name: Assert sufficient disk space
+  ansible.builtin.assert:
+    that:
+      - disk_usage.stdout | int < 90
+    fail_msg: "Disk usage is {{ disk_usage.stdout }}%, need at least 10% free space"
+    success_msg: "Disk usage is {{ disk_usage.stdout }}%, sufficient space available"
+
+- name: Check if reboot is required from previous updates
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: reboot_required
+
+- name: Warn about pending reboot
+  ansible.builtin.debug:
+    msg: "WARNING: System requires reboot from previous updates"
+  when: reboot_required.stat.exists
+
+- name: Create backup of current package list
+  ansible.builtin.shell: dpkg --get-selections > /tmp/package_backup_{{ ansible_date_time.epoch }}.txt
+  changed_when: false
+
+- name: Get list of packages to be updated
+  ansible.builtin.shell: apt list --upgradable 2>/dev/null | grep -v "^Listing" | wc -l
+  register: upgradable_count
+  changed_when: false
+
+- name: Display update information
+  ansible.builtin.debug:
+    msg: |
+      ============================================
+      Pre-update Check Results
+      ============================================
+      Host: {{ inventory_hostname }}
+      OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+      Kernel: {{ ansible_kernel }}
+      Disk Usage: {{ disk_usage.stdout }}%
+      Packages to Update: {{ upgradable_count.stdout }}
+      Reboot Required: {{ reboot_required.stat.exists | default(false) }}
+      ============================================
