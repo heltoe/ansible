@@ -49,8 +49,6 @@ graph TD
 ```
 ````
 
----
-
 # 🛠 Технологический стек
 
 * Automation (Ansible, Jinja2, YAML, Bash)
@@ -59,8 +57,6 @@ graph TD
 * Monitoring (Prometheus, Grafana, Node Exporter, MySQL Exporter)
 * Logging (ELK Stack (Elasticsearch, Logstash, Kibana, Filebeat))
 * OS / Security (Ubuntu 22.04 LTS, UFW, Fail2ban, Self-signed SSL/TLS)
-
----
 
 # 📚 Этапы выполнения (Модули)
 
@@ -104,7 +100,6 @@ graph TD
 * ```app-01```: 2 vCPU, 4-6GB RAM, 30GB+ Disk (IP: ```192.168.1.12```) (ELK требователен к ресурсам).
 3. Сетевой мост (Host-Only или Internal Network) для связи между хостом и ВМ.
 
----
 
 # 🚀 Быстрый старт (Deployment).
 
@@ -138,7 +133,6 @@ graph TD
    ansible-playbook playbooks/07-deploy-elk.yml
 ```
 
----
 
 # 🔍 Key Troubleshooting & Lessons Learned
 
@@ -160,7 +154,6 @@ graph TD
 
 Выявлено переполнение корневого LVM-раздела. Решено через очистку кэша ```apt```, вакуумирование ```journalctl``` и динамическое расширение файловой системы (```lvextend``` + ```resize2fs```) без перезагрузки.
 
----
 
 # 📈 Future Roadmap (Планы развития)
 
