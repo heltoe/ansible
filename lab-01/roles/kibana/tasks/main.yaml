@@ -1,0 +1,38 @@
+---
+- name: Install Kibana
+  ansible.builtin.apt:
+    name: kibana
+    state: present
+    update_cache: yes
+  notify: Restart kibana
+
+- name: Deploy Kibana configuration
+  ansible.builtin.template:
+    src: kibana.yaml.j2
+    dest: /etc/kibana/kibana.yml
+    owner: root
+    group: kibana
+    mode: '0660'
+  notify: Restart kibana
+
+- name: Enable and start Kibana
+  ansible.builtin.systemd:
+    name: kibana
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: Wait for Kibana to be ready
+  ansible.builtin.uri:
+    url: "http://localhost:5601/api/status"
+    status_code: 200
+  register: kibana_health
+  retries: 30
+  delay: 10
+  until: kibana_health.status == 200
+
+- name: Allow Kibana port in firewall
+  ansible.builtin.ufw:
+    rule: allow
+    port: '5601'
+    proto: tcp

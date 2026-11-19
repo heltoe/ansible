@@ -1,0 +1,30 @@
+---
+- name: Install Logstash
+  ansible.builtin.apt:
+    name: logstash
+    state: present
+    update_cache: yes
+    lock_timeout: 300
+  notify: Restart logstash
+
+- name: Deploy Logstash pipeline configuration
+  ansible.builtin.template:
+    src: logstash-pipeline.conf.j2
+    dest: /etc/logstash/conf.d/ansible-lab.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart logstash
+
+- name: Enable and start Logstash
+  ansible.builtin.systemd:
+    name: logstash
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: Allow Logstash beats port in firewall
+  ansible.builtin.ufw:
+    rule: allow
+    port: '5044'
+    proto: tcp

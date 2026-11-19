@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+server.port: 5601
+server.host: "0.0.0.0"
+server.name: "{{ inventory_hostname }}"
+
+elasticsearch.hosts: ["http://{{ elasticsearch_host | default('localhost') }}:9200"]
+
+# Отключаем security для лабы
+# xpack.security.enabled: false
+xpack.encryptedSavedObjects.encryptionKey: "a]D9g]T2kL5pQ8wZ3nB6vM9xC0fH4jK7"
+
+i18n.locale: "ru"

@@ -1,0 +1,59 @@
+---
+- name: Install prerequisites
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - software-properties-common
+      - wget
+      - gnupg2
+      - curl
+    state: present
+    update_cache: yes
+
+- name: Create keyrings directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Download and dearmor Grafana GPG key
+  ansible.builtin.shell:
+    cmd: curl -fsSL https://yandex.ru | gpg --dearmor -o /etc/apt/keyrings/grafana.gpg
+  args:
+    creates: /etc/apt/keyrings/grafana.gpg
+
+- name: Set correct permissions on Grafana GPG key
+  ansible.builtin.file:
+    path: /etc/apt/keyrings/grafana.gpg
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Add Grafana APT repository
+  ansible.builtin.apt_repository:
+    repo: "deb [trusted=yes] https://mirror.yandex.ru/mirrors/packages.grafana.com/oss/deb stable main"
+    state: present
+    filename: grafana
+    update_cache: yes
+
+- name: Install Grafana
+  ansible.builtin.apt:
+    name: grafana
+    state: present
+    update_cache: yes
+  notify: Restart grafana
+
+- name: Enable and start Grafana
+  ansible.builtin.systemd:
+    name: grafana-server
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: Allow Grafana port in firewall
+  ansible.builtin.ufw:
+    rule: allow
+    port: '3000'
+    proto: tcp

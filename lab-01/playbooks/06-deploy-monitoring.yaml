@@ -1,0 +1,52 @@
+---
+# Развёртывание стека мониторинга Prometheus + Grafana
+# Запуск: ansible-playbook playbooks/06-deploy-monitoring.yml
+
+- name: Deploy Node Exporter on all servers
+  hosts: all
+  become: yes
+  gather_facts: yes
+  roles:
+    - role: node_exporter
+
+- name: Deploy MySQL Exporter on database server
+  hosts: app_servers
+  become: yes
+  gather_facts: yes
+  roles:
+    - role: mysqld_exporter
+
+- name: Deploy Prometheus and Grafana on monitoring server
+  hosts: monitoring_servers
+  become: yes
+  gather_facts: yes
+  roles:
+    - role: prometheus
+    - role: grafana
+
+- name: Verify monitoring stack
+  hosts: monitoring_servers
+  become: yes
+  tasks:
+    - name: Check if Prometheus is responding
+      ansible.builtin.uri:
+        url: "http://localhost:9090/-/healthy"
+        status_code: 200
+      register: prom_health
+
+    - name: Check if Grafana is responding
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/health"
+        status_code: 200
+      register: grafana_health
+
+    - name: Display monitoring status
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+          ✅ Мониторинг успешно развёрнут!
+          ============================================
+          Prometheus UI: http://{{ ansible_host }}:9090
+          Grafana UI:    http://{{ ansible_host }}:3000
+          Grafana Login: admin / admin
+          ============================================

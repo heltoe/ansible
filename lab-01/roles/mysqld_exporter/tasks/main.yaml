@@ -1,0 +1,79 @@
+---
+- name: Create MySQL exporter user
+  ansible.builtin.mysql_user:
+    name: exporter
+    password: "ExporterP@ssw0rd!"
+    priv: "*.*:PROCESS,REPLICATION CLIENT,SELECT"
+    host: localhost
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    state: present
+
+- name: Create mysqld_exporter system user
+  ansible.builtin.user:
+    name: mysqld_exporter
+    system: yes
+    shell: /sbin/nologin
+    create_home: no
+
+- name: Download MySQL Exporter
+  ansible.builtin.get_url:
+    url: https://github.com/prometheus/mysqld_exporter/releases/download/v0.15.1/mysqld_exporter-0.15.1.linux-amd64.tar.gz
+    dest: /tmp/mysqld_exporter.tar.gz
+    mode: '0644'
+
+- name: Extract MySQL Exporter
+  ansible.builtin.unarchive:
+    src: /tmp/mysqld_exporter.tar.gz
+    dest: /opt/
+    remote_src: yes
+    creates: /opt/mysqld_exporter-0.15.1.linux-amd64/mysqld_exporter
+
+- name: Create symlink for mysqld_exporter binary
+  ansible.builtin.file:
+    src: /opt/mysqld_exporter-0.15.1.linux-amd64/mysqld_exporter
+    dest: /usr/local/bin/mysqld_exporter
+    state: link
+
+- name: Create .my.cnf for exporter
+  ansible.builtin.copy:
+    dest: /etc/mysqld_exporter.cnf
+    content: |
+      [client]
+      user=exporter
+      password=ExporterP@ssw0rd!
+    owner: mysqld_exporter
+    group: mysqld_exporter
+    mode: '0600'
+
+- name: Deploy systemd service for MySQL Exporter
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/mysqld_exporter.service
+    content: |
+      [Unit]
+      Description=MySQL Exporter
+      Wants=network-online.target
+      After=network-online.target, mariadb.service
+
+      [Service]
+      User=mysqld_exporter
+      Group=mysqld_exporter
+      Type=simple
+      ExecStart=/usr/local/bin/mysqld_exporter --config.my-cnf=/etc/mysqld_exporter.cnf
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: '0644'
+  notify: Restart mysqld_exporter
+
+- name: Enable and start MySQL Exporter
+  ansible.builtin.systemd:
+    name: mysqld_exporter
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: Allow MySQL Exporter port in firewall
+  ansible.builtin.ufw:
+    rule: allow
+    port: '9104'
+    proto: tcp

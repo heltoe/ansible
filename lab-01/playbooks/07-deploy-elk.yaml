@@ -1,0 +1,60 @@
+---
+# Развёртывание ELK Stack для централизованного логирования
+# Запуск: ansible-playbook playbooks/07-deploy-elk.yml
+
+- name: Deploy Elasticsearch, Kibana, Logstash on ELK server
+  hosts: elk_servers
+  become: yes
+  gather_facts: yes
+  roles:
+    - role: elasticsearch
+    - role: kibana
+    - role: logstash
+
+- name: Deploy Filebeat on all servers
+  hosts: all
+  become: yes
+  gather_facts: yes
+  roles:
+    - role: filebeat
+
+- name: Load Filebeat dashboards into Kibana
+  hosts: elk_servers
+  become: yes
+  tasks:
+    - name: Wait for Kibana to be fully ready
+      ansible.builtin.uri:
+        url: "http://localhost:5601/api/status"
+        status_code: 200
+      register: kibana_ready
+      retries: 10
+      delay: 15
+      until: kibana_ready.status == 200
+
+    - name: Load Filebeat index template
+      ansible.builtin.command: filebeat setup --index-management -E output.logstash.enabled=false -E 'output.elasticsearch.hosts=["http://localhost:9200"]'
+      changed_when: false
+
+    - name: Load Filebeat dashboards
+      ansible.builtin.command: filebeat setup --dashboards -E output.logstash.enabled=false -E 'output.elasticsearch.hosts=["http://localhost:9200"]' -E 'setup.kibana.host="http://localhost:5601"'
+      changed_when: false
+
+- name: Display ELK deployment status
+  hosts: elk_servers
+  tasks:
+    - name: Display ELK URLs
+      ansible.builtin.debug:
+        msg: |
+          ============================================
+          ✅ ELK Stack успешно развёрнут!
+          ============================================
+          Kibana UI:       http://{{ ansible_host }}:5601
+          Elasticsearch:   http://{{ ansible_host }}:9200
+          Logstash:        {{ ansible_host }}:5044
+          
+          Следующие шаги в Kibana:
+          1. Stack Management → Data Views → Create data view
+          2. Pattern: filebeat-*
+          3. Time field: @timestamp
+          4. Discover → выбери data view
+          ============================================

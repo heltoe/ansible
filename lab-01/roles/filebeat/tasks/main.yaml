@@ -1,0 +1,87 @@
+---
+- name: Clean broken and duplicate APT repositories
+  ansible.builtin.shell: |
+    grep -rlF "https://yandex.ru" /etc/apt/ | xargs -r sed -i '/https:\/\/yandex\.ru/d'
+    grep -rlF "mirrors/elastic" /etc/apt/sources.list.d/ | xargs -r rm -f
+  changed_when: false
+
+- name: Add Elasticsearch APT repository (Yandex Mirror)
+  ansible.builtin.apt_repository:
+    repo: "deb [trusted=yes] https://mirror.yandex.ru/mirrors/elastic/8/ stable main"
+    state: present
+    filename: elasticsearch
+    update_cache: false
+
+- name: Install Filebeat
+  ansible.builtin.apt:
+    name: filebeat
+    state: present
+    update_cache: true
+  notify: Restart filebeat
+
+- name: Deploy Filebeat configuration
+  ansible.builtin.template:
+    src: filebeat.yaml.j2
+    dest: /etc/filebeat/filebeat.yml
+    owner: root
+    group: root
+    mode: '0640'
+  notify: Restart filebeat
+
+- name: Enable nginx module
+  ansible.builtin.command: filebeat modules enable nginx
+  args:
+    creates: /etc/filebeat/modules.d/nginx.yml
+  when: server_type | default('') == 'web'
+  notify: Restart filebeat
+
+- name: Enable system module (always)
+  ansible.builtin.command: filebeat modules enable system
+  args:
+    creates: /etc/filebeat/modules.d/system.yml
+  notify: Restart filebeat
+
+- name: Enable mysql module on db server
+  ansible.builtin.command: filebeat modules enable mysql
+  args:
+    creates: /etc/filebeat/modules.d/mysql.yml
+  when: server_type | default('') == 'db'
+  notify: Restart filebeat
+
+- name: Configure nginx module paths
+  ansible.builtin.copy:
+    dest: /etc/filebeat/modules.d/nginx.yml
+    content: |
+      - module: nginx
+        access:
+          enabled: true
+          var.paths: ["/var/log/nginx/*_access.log"]
+        error:
+          enabled: true
+          var.paths: ["/var/log/nginx/*_error.log"]
+    owner: root
+    group: root
+    mode: '0640'
+  when: server_type | default('') == 'web'
+  notify: Restart filebeat
+
+- name: Configure mysql module paths
+  ansible.builtin.copy:
+    dest: /etc/filebeat/modules.d/mysql.yml
+    content: |
+      - module: mysql
+        error:
+          enabled: true
+          var.paths: ["/var/log/mysql/error.log"]
+    owner: root
+    group: root
+    mode: '0640'
+  when: server_type | default('') == 'db'
+  notify: Restart filebeat
+
+- name: Enable and start Filebeat
+  ansible.builtin.systemd:
+    name: filebeat
+    state: started
+    enabled: yes
+    daemon_reload: yes
