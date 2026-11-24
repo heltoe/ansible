@@ -3,11 +3,11 @@ name: Deploy Infrastructure
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
-      - 'playbooks/**'
-      - 'roles/**'
-      - 'inventory/**'
+      - 'lab-01/playbooks/**'
+      - 'lab-01/roles/**'
+      - 'lab-01/inventory/**'
   workflow_dispatch:
     inputs:
       target:
@@ -29,6 +29,9 @@ jobs:
     name: Deploy to Production
     runs-on: [self-hosted, sre-lab]
     environment: production
+    defaults:
+      run:
+        working-directory: lab-01
 
     steps:
       - name: Checkout code
