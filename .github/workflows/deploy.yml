@@ -43,12 +43,12 @@ jobs:
       - name: Dry run (check mode)
         run: |
           source /home/x-outhink/ansible-lab/lab-01/.venv-ci/bin/activate
-          ansible-playbook playbooks/05-install-app.yml --check --diff
+          ansible-playbook playbooks/05-install-app.yaml --check --diff
 
       - name: Run Canary Deployment
         run: |
           source /home/x-outhink/ansible-lab/lab-01/.venv-ci/bin/activate
-          ansible-playbook playbooks/12-canary-deploy.yml
+          ansible-playbook playbooks/08-canary-deploy.yaml
 
       - name: 🧪 Run Integration Tests
         run: |
