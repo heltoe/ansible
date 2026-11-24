@@ -154,10 +154,19 @@ graph TD
 
 Выявлено переполнение корневого LVM-раздела. Решено через очистку кэша ```apt```, вакуумирование ```journalctl``` и динамическое расширение файловой системы (```lvextend``` + ```resize2fs```) без перезагрузки.
 
+## 🔄 CI/CD Pipeline
 
-# 📈 Future Roadmap (Планы развития)
+Автоматизированный пайплайн на GitHub Actions:
 
-* Миграция с ELK на Grafana Loki + Promtail: Снижение потребления RAM и дискового пространства в 5-10 раз при сохранении нативной интеграции с Grafana.
-* CI/CD Pipeline: Интеграция GitHub Actions с ansible-lint, yamllint и тестированием ролей через Molecule.
-* Windows Automation: Добавление модулей по управлению Windows Server и Active Directory через WinRM (Lab 2.x).
-* Disaster Recovery: Настройка автоматического бэкапирования конфигураций и БД с проверкой целостности восстановления.
+| Workflow | Триггер | Что делает |
+|----------|---------|------------|
+| `lint.yml` | push/PR | ansible-lint + yamllint |
+| `test.yml` | push/PR | Molecule-тесты (matrix: 3 роли параллельно) |
+| `deploy.yml` | push в main | Canary deploy + integration tests + report |
+
+**Ключевые фичи:**
+- Self-hosted runner на systemd (автозапуск, health-check)
+- Canary deployment: `serial: 1`, `max_fail_percentage: 0`
+- Blast radius ограничен одним сервером
+- Автоматический отчёт со статусом всех endpoint'ов
+- Branch protection: merge только после зелёного CI
