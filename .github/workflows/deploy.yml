@@ -74,18 +74,107 @@ jobs:
 
           echo "✅ All Integration Tests PASSED"
 
-      - name: Notify Telegram on success
-        if: success()
+      - name: 📊 Generate Deployment Report
+        if: always()
         run: |
-          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
-            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-            -d text="✅ Deploy successful: ${{ github.sha }} on $(date)"
-        continue-on-error: true
-
-      - name: Notify Telegram on failure
-        if: failure()
-        run: |
-          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
-            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-            -d text="❌ Deploy FAILED: ${{ github.sha }} — check https://github.com/${{ github.repository }}/actions"
-        continue-on-error: true
+          echo "╔══════════════════════════════════════════════════════════╗"
+          echo "║              🚀 DEPLOYMENT REPORT                        ║"
+          echo "╚══════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "📦 Commit:    ${{ github.sha }}"
+          echo "👤 Author:    ${{ github.actor }}"
+          echo "🌿 Branch:    ${{ github.ref_name }}"
+          echo "🕐 Time:      $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "📂 Repo:      ${{ github.repository }}"
+          echo "🔗 Workflow:  ${{ github.run_id }}"
+          echo ""
+          echo "═══════════════════════════════════════════════════════════"
+          echo "  ENDPOINTS STATUS"
+          echo "═══════════════════════════════════════════════════════════"
+          echo ""
+          
+          # Проверяем все ключевые endpoint'ы
+          echo -n "  🔹 web-01 (192.168.1.10)  → "
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -k --max-time 5 https://192.168.1.10/health)
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ $STATUS OK"
+          else
+            echo "❌ $STATUS FAIL"
+          fi
+          
+          echo -n "  🔹 web-02 (192.168.1.11)  → "
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -k --max-time 5 https://192.168.1.11/health)
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ $STATUS OK"
+          else
+            echo "❌ $STATUS FAIL"
+          fi
+          
+          echo -n "  🔹 Prometheus (app-01)    → "
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://192.168.1.12:9090/-/healthy)
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ $STATUS OK"
+          else
+            echo "❌ $STATUS FAIL"
+          fi
+          
+          echo -n "  🔹 Grafana (app-01)       → "
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://192.168.1.12:3000/api/health)
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ $STATUS OK"
+          else
+            echo "❌ $STATUS FAIL"
+          fi
+          
+          echo -n "  🔹 Kibana (app-01)        → "
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://192.168.1.12:5601/api/status)
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ $STATUS OK"
+          else
+            echo "❌ $STATUS FAIL"
+          fi
+          
+          echo ""
+          echo "═══════════════════════════════════════════════════════════"
+          echo "  APPLICATION INFO"
+          echo "═══════════════════════════════════════════════════════════"
+          echo ""
+          
+          # Получаем версию приложения
+          echo "  📋 App Version Info:"
+          curl -s -k https://192.168.1.10/api/info 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "    (unavailable)"
+          echo ""
+          
+          # Проверяем БД
+          echo "  🗄️  Database Users Count:"
+          curl -s -k https://192.168.1.10/api/users 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'    Total users: {len(d.get(\"users\", []))}')" 2>/dev/null || echo "    (unavailable)"
+          echo ""
+          
+          echo "═══════════════════════════════════════════════════════════"
+          echo "  DEPLOYMENT RESULT"
+          echo "═══════════════════════════════════════════════════════════"
+          echo ""
+          
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "  ✅ DEPLOYMENT SUCCESSFUL"
+            echo ""
+            echo "  🎯 Next steps:"
+            echo "     • Check Grafana: http://192.168.1.12:3000"
+            echo "     • Check Kibana:  http://192.168.1.12:5601"
+            echo "     • Check App:     https://192.168.1.10"
+          else
+            echo "  ❌ DEPLOYMENT FAILED"
+            echo ""
+            echo "  🔍 Investigate:"
+            echo "     • Review logs above"
+            echo "     • SSH to affected server"
+            echo "     • Check systemctl status"
+          fi
+          echo ""
+          echo "╚══════════════════════════════════════════════════════════╝"
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "  📈 Prometheus Metrics (last 5 min):"
+            echo -n "    CPU avg: "
+            curl -s 'http://192.168.1.12:9090/api/v1/query?query=avg(rate(node_cpu_seconds_total%7Bmode%3D%22idle%22%7D%5B5m%5D))' \
+              | python3 -c "import sys,json; d=json.load(sys.stdin); v=float(d['data']['result'][0]['value'][1]); print(f'{100-v:.1f}% busy')" 2>/dev/null || echo "N/A"
+          fi
