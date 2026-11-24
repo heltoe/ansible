@@ -53,6 +53,6 @@
           ============================================
           Deployment Status for {{ inventory_hostname }}
           ============================================
-          Health Check: {{ '✅ PASSED' if health_check.status == 200 else '❌ FAILED' }}
+          Health Check: {{ '✅ PASSED' if (health_check.status | default(0)) == 200 else '⚠️ SKIPPED / FAILED' }}
           URL: https://{{ ansible_host }}
           ============================================
