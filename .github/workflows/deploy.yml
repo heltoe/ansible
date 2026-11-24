@@ -1,0 +1,30 @@
+      # ... (предыдущие шаги checkout и dry-run) ...
+
+      - name: Run Canary Deployment
+        run: |
+          source /home/x-outhink/ansible-lab/lab-01/.venv-ci/bin/activate
+          ansible-playbook playbooks/08-canary-deploy.yaml
+
+      - name: 🧪 Run Integration Tests
+        run: |
+          echo "Testing full stack connectivity..."
+          
+          # 1. Тестируем, что Nginx проксирует запросы
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -k https://192.168.1.10/)
+          if [ "$RESPONSE" != "200" ]; then
+            echo "❌ Integration Test FAILED: Nginx did not return 200 OK"
+            exit 1
+          fi
+
+          # 2. Тестируем, что приложение может читать из БД
+          DB_RESPONSE=$(curl -s -k https://192.168.1.10/api/users)
+          if echo "$DB_RESPONSE" | grep -q "error"; then
+            echo "❌ Integration Test FAILED: App cannot connect to MariaDB"
+            echo "Response: $DB_RESPONSE"
+            exit 1
+          fi
+
+          echo "✅ All Integration Tests PASSED"
+
+      - name: Notify Telegram on success
+      # ... (остальная часть файла) ...

@@ -1,0 +1,47 @@
+---
+name: Test Ansible Roles (Molecule)
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  molecule:
+    name: Molecule ${{ matrix.role }}
+    runs-on: ubuntu-latest
+    
+    # МАТРИЦА: Запускает тесты для всех ролей параллельно
+    strategy:
+      fail-fast: false
+      matrix:
+        role:
+          - node_exporter
+          - nginx
+          - simple_app
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Molecule test
+        working-directory: lab-01/roles/${{ matrix.role }}
+        run: molecule test
+        env:
+          ANSIBLE_FORCE_COLOR: '1'
+
+      - name: Cleanup on failure
+        if: failure()
+        working-directory: lab-01/roles/${{ matrix.role }}
+        run: molecule destroy || true
