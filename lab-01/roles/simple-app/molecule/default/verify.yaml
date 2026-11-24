@@ -1,0 +1,27 @@
+---
+- name: Verify Simple App installation
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check venv exists
+      ansible.builtin.stat:
+        path: /opt/test_app/venv/bin/activate
+      register: venv_stat
+      failed_when: not venv_stat.stat.exists
+
+    - name: Check required python packages are installed
+      ansible.builtin.command: /opt/test_app/venv/bin/pip list
+      register: pip_list
+      failed_when: "'flask' not in pip_list.stdout or 'gunicorn' not in pip_list.stdout"
+
+    - name: Check Gunicorn service is running
+      ansible.builtin.systemd:
+        name: test_app
+      register: svc_check
+      failed_when: svc_check.status.ActiveState != "active"
+
+    - name: Check app responds on port 8000
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8000/health
+        status_code: 200
+        timeout: 10

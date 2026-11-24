@@ -1,0 +1,11 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    app_name: "test_app"
+    app_dir: "/opt/test_app"
+    app_db_host: "127.0.0.1" # Mock DB for unit test
+  roles:
+    - role: simple_app

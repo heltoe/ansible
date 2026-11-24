@@ -1,0 +1,51 @@
+---
+# Canary Deploy: Обновляем по 1 серверу. Если health-check падает, 
+# плейбук немедленно останавливается, защищая остальные серверы.
+
+- name: Canary Deploy Application Stack
+  hosts: web_servers
+  become: yes
+  gather_facts: yes
+  
+  # КЛЮЧЕВЫЕ ПАРАМЕТРЫ БЕЗОПАСНОСТИ:
+  serial: 1                    # Обновляем строго по 1 хосту за раз
+  max_fail_percentage: 0       # Если 1 хост падает, останавливаем ВСЁ (0% терпимости к ошибкам)
+  any_errors_fatal: true       # Альтернативный способ прервать плей при первой же ошибке
+
+  pre_tasks:
+    - name: Announce canary deployment
+      ansible.builtin.debug:
+        msg: "🚀 Starting CANARY deployment on {{ inventory_hostname }}..."
+
+  roles:
+    - role: simple-app
+    - role: nginx
+
+  post_tasks:
+    - name: Wait for services to stabilize
+      ansible.builtin.pause:
+        seconds: 10
+
+    - name: CANARY HEALTH CHECK (Critical)
+      ansible.builtin.uri:
+        url: "https://{{ ansible_host }}/health"
+        status_code: 200
+        timeout: 10
+        validate_certs: no
+      register: canary_health
+      failed_when: canary_health.status != 200
+      retries: 3
+      delay: 5
+
+    - name: Verify database connectivity from canary
+      ansible.builtin.uri:
+        url: "https://{{ ansible_host }}/api/users"
+        status_code: 200
+        timeout: 10
+        validate_certs: no
+      register: db_health
+      failed_when: db_health.status != 200
+
+    - name: Canary success message
+      ansible.builtin.debug:
+        msg: "✅ Canary deployment on {{ inventory_hostname }} SUCCESSFUL. Proceeding to next host."
